@@ -311,6 +311,19 @@ class Neo4jService:
                     y=y
                 )
 
+    def update_cluster_ids(self, cluster_map: dict[str, int]):
+        """Update cluster_id for quotes."""
+        with self.driver.session() as session:
+            for quote_id, cluster_id in cluster_map.items():
+                session.run(
+                    """
+                    MATCH (q:Quote {id: $quote_id})
+                    SET q.cluster_id = $cluster_id
+                    """,
+                    quote_id=quote_id,
+                    cluster_id=cluster_id
+                )
+
     def create_similarity_edges_top_k(self, top_k_map: dict[str, list[tuple[str, float]]]):
         """Create directed top-K similarity edges."""
         with self.driver.session() as session:
