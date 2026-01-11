@@ -24,9 +24,19 @@ class GraphData(BaseModel):
     edges: list[GraphEdge]
 
 
+class ClusterStats(BaseModel):
+    """Cluster statistics."""
+    cluster_id: int
+    quote_count: int
+    avg_similarity: float
+
+
 class AnalyticsStats(BaseModel):
     """Analytics statistics."""
     total_quotes: int
     total_people: int
     avg_quotes_per_person: float
     top_people: list[dict[str, Any]]
+    total_clusters: int
+    cluster_distribution: list[ClusterStats]
+    avg_cluster_size: float

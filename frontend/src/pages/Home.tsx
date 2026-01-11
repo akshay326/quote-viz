@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
 import { graphApi, quoteApi } from '../api/client'
 import { useMemo, useCallback, useRef, useEffect } from 'react'
-import ForceGraph from 'react-force-graph-2d'
+import ForceGraph3D from 'react-force-graph-3d'
 
 interface ForceGraphNode {
   id: string
@@ -10,6 +10,7 @@ interface ForceGraphNode {
   type: string
   x?: number
   y?: number
+  z?: number
   val: number
   color: string
   text?: string
@@ -45,12 +46,17 @@ function Home() {
       const hasUMAP = node.data.umap_x !== null && node.data.umap_x !== undefined &&
                       node.data.umap_y !== null && node.data.umap_y !== undefined
 
+      // Use cluster_id for Z-axis positioning (multiply by 200 for spacing)
+      const clusterId = node.data.cluster_id
+      const zPosition = (clusterId !== null && clusterId !== undefined) ? clusterId * 200 : 0
+
       return {
         id: node.id,
         name: isQuote ? node.data.author || 'Unknown' : node.label,
         type: node.type,
         x: hasUMAP ? (node.data.umap_x - 0.5) * 1000 : undefined,
         y: hasUMAP ? (node.data.umap_y - 0.5) * 1000 : undefined,
+        z: zPosition,
         val: isQuote ? 8 : 12,
         color: isQuote ? '#3b82f6' : '#f97316',
         text: isQuote ? node.data.text : undefined
@@ -88,6 +94,7 @@ function Home() {
         <nav style={{ marginTop: '1rem', display: 'flex', gap: '1rem' }}>
           <Link to="/">Home</Link>
           <Link to="/analytics">Analytics</Link>
+          <Link to="/search">Search</Link>
         </nav>
       </header>
 
@@ -114,7 +121,7 @@ function Home() {
                 </div>
               </div>
               <div style={{ height: '600px', background: '#0a0a0a', borderBottomLeftRadius: '0.5rem', borderBottomRightRadius: '0.5rem' }}>
-                <ForceGraph
+                <ForceGraph3D
                   ref={graphRef}
                   graphData={forceGraphData}
                   nodeLabel={(node: any) => {
@@ -140,14 +147,12 @@ function Home() {
                   }}
                   linkDirectionalParticleWidth={2}
                   onNodeClick={handleNodeClick}
-                  dagMode={null}
                   d3AlphaDecay={0.02}
                   d3VelocityDecay={0.3}
                   warmupTicks={100}
                   cooldownTicks={0}
                   enableNodeDrag={true}
-                  enableZoomInteraction={true}
-                  enablePanInteraction={true}
+                  enableNavigationControls={true}
                 />
               </div>
             </div>

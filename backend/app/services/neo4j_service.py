@@ -419,11 +419,42 @@ class Neo4jService:
             )
             top_people = [{"name": r["name"], "quote_count": r["quote_count"]} for r in result]
 
+            # Get cluster statistics
+            result = session.run(
+                """
+                MATCH (q:Quote)
+                WHERE q.cluster_id IS NOT NULL
+                WITH q.cluster_id as cluster_id, count(q) as quote_count
+                OPTIONAL MATCH (q1:Quote)-[s:SIMILAR_TO]->(q2:Quote)
+                WHERE q1.cluster_id = cluster_id AND q2.cluster_id = cluster_id
+                WITH cluster_id, quote_count, avg(s.similarity) as avg_similarity
+                RETURN cluster_id, quote_count, COALESCE(avg_similarity, 0.0) as avg_similarity
+                ORDER BY cluster_id
+                """
+            )
+            cluster_distribution = [
+                {
+                    "cluster_id": r["cluster_id"],
+                    "quote_count": r["quote_count"],
+                    "avg_similarity": r["avg_similarity"]
+                }
+                for r in result
+            ]
+
+            total_clusters = len(cluster_distribution)
+            avg_cluster_size = (
+                sum(c["quote_count"] for c in cluster_distribution) / total_clusters
+                if total_clusters > 0 else 0
+            )
+
             return {
                 "total_quotes": total_quotes,
                 "total_people": total_people,
                 "avg_quotes_per_person": total_quotes / total_people if total_people > 0 else 0,
-                "top_people": top_people
+                "top_people": top_people,
+                "total_clusters": total_clusters,
+                "cluster_distribution": cluster_distribution,
+                "avg_cluster_size": avg_cluster_size
             }
 
     def search_quotes(self, query: str, limit: int = 20) -> list[dict]:
