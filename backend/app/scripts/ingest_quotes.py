@@ -4,6 +4,7 @@
 import json
 import os
 import sys
+import asyncio
 from pathlib import Path
 
 # Add parent directory to path
@@ -14,7 +15,7 @@ from app.services.neo4j_service import Neo4jService
 from app.services.nlp_service import NLPService
 
 
-def ingest_quotes(json_file_path: str = "/app/data/processed/quotes.json"):
+async def ingest_quotes(json_file_path: str = "/app/data/processed/quotes.json"):
     """Ingest quotes from JSON file."""
     if not os.path.exists(json_file_path):
         print(f"Error: File not found: {json_file_path}")
@@ -23,10 +24,6 @@ def ingest_quotes(json_file_path: str = "/app/data/processed/quotes.json"):
     settings = get_settings()
     neo4j_service = Neo4jService(settings)
     nlp_service = NLPService(settings)
-
-    print("Loading NLP model...")
-    nlp_service.load_model()
-    print("✓ Model loaded")
 
     print(f"\nReading quotes from {json_file_path}...")
     with open(json_file_path, 'r', encoding='utf-8') as f:
@@ -42,7 +39,7 @@ def ingest_quotes(json_file_path: str = "/app/data/processed/quotes.json"):
             author = quote_data.get("author")
             text = quote_data.get("quote")
             context = quote_data.get("context")
-            source = quote_data.get("source")
+            original_text = quote_data.get("original_text", text)
 
             if not author or not text:
                 print(f"⚠ Skipping quote {idx}: missing author or text")
@@ -55,14 +52,14 @@ def ingest_quotes(json_file_path: str = "/app/data/processed/quotes.json"):
                 print(f"  Created person: {author}")
 
             print(f"[{idx}/{len(quotes_data)}] Generating embedding for quote by {author}...")
-            embedding = nlp_service.generate_embedding(text)
+            embedding = await nlp_service.generate_embedding(text)
 
             neo4j_service.create_quote(
                 text=text,
                 author_name=author,
                 embedding=embedding,
                 context=context,
-                source=source
+                original_text=original_text
             )
 
             created_count += 1
@@ -84,4 +81,4 @@ def ingest_quotes(json_file_path: str = "/app/data/processed/quotes.json"):
 
 if __name__ == "__main__":
     json_path = sys.argv[1] if len(sys.argv) > 1 else "/app/data/processed/quotes.json"
-    ingest_quotes(json_path)
+    asyncio.run(ingest_quotes(json_path))

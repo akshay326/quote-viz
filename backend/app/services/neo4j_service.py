@@ -30,7 +30,7 @@ class Neo4jService:
         """Close the database connection."""
         self.driver.close()
 
-    def create_person(self, name: str, bio: Optional[str] = None) -> dict:
+    def create_person(self, name: str, bio: Optional[str] = None, image_url: Optional[str] = None) -> dict:
         """Create a person node."""
         with self.driver.session() as session:
             result = session.run(
@@ -39,14 +39,17 @@ class Neo4jService:
                 ON CREATE SET
                     p.id = $id,
                     p.created_at = datetime(),
-                    p.bio = $bio
+                    p.bio = $bio,
+                    p.image_url = $image_url
                 ON MATCH SET
-                    p.bio = COALESCE($bio, p.bio)
+                    p.bio = COALESCE($bio, p.bio),
+                    p.image_url = COALESCE($image_url, p.image_url)
                 RETURN p
                 """,
                 name=name,
                 id=str(uuid.uuid4()),
-                bio=bio
+                bio=bio,
+                image_url=image_url
             )
             record = result.single()
             if record:
@@ -55,6 +58,7 @@ class Neo4jService:
                     "id": person["id"],
                     "name": person["name"],
                     "bio": person.get("bio"),
+                    "image_url": person.get("image_url"),
                     "created_at": convert_neo4j_datetime(person["created_at"])
                 }
 
@@ -72,9 +76,24 @@ class Neo4jService:
                     "id": person["id"],
                     "name": person["name"],
                     "bio": person.get("bio"),
+                    "image_url": person.get("image_url"),
                     "created_at": convert_neo4j_datetime(person["created_at"])
                 }
             return None
+
+    def update_person_image(self, name: str, image_url: str) -> bool:
+        """Update person's image URL."""
+        with self.driver.session() as session:
+            result = session.run(
+                """
+                MATCH (p:Person {name: $name})
+                SET p.image_url = $image_url
+                RETURN p
+                """,
+                name=name,
+                image_url=image_url
+            )
+            return result.single() is not None
 
     def create_quote(
         self,
@@ -82,7 +101,7 @@ class Neo4jService:
         author_name: str,
         embedding: list[float],
         context: Optional[str] = None,
-        source: Optional[str] = None,
+        original_text: Optional[str] = None,
         umap_x: Optional[float] = None,
         umap_y: Optional[float] = None
     ) -> dict:
@@ -95,7 +114,7 @@ class Neo4jService:
                     id: $id,
                     text: $text,
                     context: $context,
-                    source: $source,
+                    original_text: $original_text,
                     embedding: $embedding,
                     umap_x: $umap_x,
                     umap_y: $umap_y,
@@ -107,7 +126,7 @@ class Neo4jService:
                 id=str(uuid.uuid4()),
                 text=text,
                 context=context,
-                source=source,
+                original_text=original_text,
                 embedding=embedding,
                 umap_x=umap_x,
                 umap_y=umap_y,
@@ -121,7 +140,7 @@ class Neo4jService:
                     "id": quote["id"],
                     "text": quote["text"],
                     "context": quote.get("context"),
-                    "source": quote.get("source"),
+                    "original_text": quote.get("original_text"),
                     "umap_x": quote.get("umap_x"),
                     "umap_y": quote.get("umap_y"),
                     "created_at": convert_neo4j_datetime(quote["created_at"]),
@@ -129,6 +148,7 @@ class Neo4jService:
                         "id": person["id"],
                         "name": person["name"],
                         "bio": person.get("bio"),
+                        "image_url": person.get("image_url"),
                         "created_at": convert_neo4j_datetime(person["created_at"])
                     }
                 }
@@ -151,7 +171,7 @@ class Neo4jService:
                     "id": quote["id"],
                     "text": quote["text"],
                     "context": quote.get("context"),
-                    "source": quote.get("source"),
+                    "original_text": quote.get("original_text"),
                     "umap_x": quote.get("umap_x"),
                     "umap_y": quote.get("umap_y"),
                     "created_at": convert_neo4j_datetime(quote["created_at"]),
@@ -159,6 +179,7 @@ class Neo4jService:
                         "id": person["id"],
                         "name": person["name"],
                         "bio": person.get("bio"),
+                        "image_url": person.get("image_url"),
                         "created_at": convert_neo4j_datetime(person["created_at"])
                     }
                 }
@@ -197,7 +218,7 @@ class Neo4jService:
                     "id": quote["id"],
                     "text": quote["text"],
                     "context": quote.get("context"),
-                    "source": quote.get("source"),
+                    "original_text": quote.get("original_text"),
                     "cluster_id": quote.get("cluster_id"),
                     "umap_x": quote.get("umap_x"),
                     "umap_y": quote.get("umap_y"),
@@ -206,6 +227,7 @@ class Neo4jService:
                         "id": person["id"],
                         "name": person["name"],
                         "bio": person.get("bio"),
+                        "image_url": person.get("image_url"),
                         "created_at": convert_neo4j_datetime(person["created_at"])
                     }
                 })
@@ -216,7 +238,6 @@ class Neo4jService:
         quote_id: str,
         text: Optional[str] = None,
         context: Optional[str] = None,
-        source: Optional[str] = None,
         author_name: Optional[str] = None,
         embedding: Optional[list[float]] = None
     ) -> Optional[dict]:
@@ -231,9 +252,6 @@ class Neo4jService:
             if context is not None:
                 updates.append("q.context = $context")
                 params["context"] = context
-            if source is not None:
-                updates.append("q.source = $source")
-                params["source"] = source
             if embedding is not None:
                 updates.append("q.embedding = $embedding")
                 params["embedding"] = embedding
@@ -266,7 +284,7 @@ class Neo4jService:
                     "id": quote["id"],
                     "text": quote["text"],
                     "context": quote.get("context"),
-                    "source": quote.get("source"),
+                    "original_text": quote.get("original_text"),
                     "umap_x": quote.get("umap_x"),
                     "umap_y": quote.get("umap_y"),
                     "created_at": convert_neo4j_datetime(quote["created_at"]),
@@ -274,6 +292,7 @@ class Neo4jService:
                         "id": person["id"],
                         "name": person["name"],
                         "bio": person.get("bio"),
+                        "image_url": person.get("image_url"),
                         "created_at": convert_neo4j_datetime(person["created_at"])
                     }
                 }
@@ -378,7 +397,10 @@ class Neo4jService:
                         "id": person["id"],
                         "label": person["name"],
                         "type": "person",
-                        "data": {"name": person["name"]}
+                        "data": {
+                            "name": person["name"],
+                            "image_url": person.get("image_url")
+                        }
                     })
                     people_seen.add(person["id"])
 
@@ -494,7 +516,7 @@ class Neo4jService:
                     "id": quote["id"],
                     "text": quote["text"],
                     "context": quote.get("context"),
-                    "source": quote.get("source"),
+                    "original_text": quote.get("original_text"),
                     "cluster_id": quote.get("cluster_id"),
                     "umap_x": quote.get("umap_x"),
                     "umap_y": quote.get("umap_y"),
@@ -503,6 +525,7 @@ class Neo4jService:
                         "id": person["id"],
                         "name": person["name"],
                         "bio": person.get("bio"),
+                        "image_url": person.get("image_url"),
                         "created_at": convert_neo4j_datetime(person["created_at"])
                     }
                 })

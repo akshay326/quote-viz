@@ -7,6 +7,7 @@ class PersonBase(BaseModel):
     """Base Person model."""
     name: str = Field(..., min_length=1, max_length=200)
     bio: Optional[str] = None
+    image_url: Optional[str] = None
 
 
 class PersonCreate(PersonBase):
@@ -27,7 +28,7 @@ class QuoteBase(BaseModel):
     """Base Quote model."""
     text: str = Field(..., min_length=1)
     context: Optional[str] = None
-    source: Optional[str] = None
+    original_text: Optional[str] = None
 
 
 class QuoteCreate(QuoteBase):
@@ -39,7 +40,6 @@ class QuoteUpdate(BaseModel):
     """Model for updating a quote."""
     text: Optional[str] = Field(None, min_length=1)
     context: Optional[str] = None
-    source: Optional[str] = None
     author: Optional[str] = None
 
 

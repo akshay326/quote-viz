@@ -1,8 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
-import { graphApi, quoteApi } from '../api/client'
+import { graphApi } from '../api/client'
 import { useMemo, useCallback, useRef, useEffect } from 'react'
 import ForceGraph3D from 'react-force-graph-3d'
+import * as THREE from 'three'
+import SpriteText from 'three-spritetext'
 
 interface ForceGraphNode {
   id: string
@@ -14,6 +16,7 @@ interface ForceGraphNode {
   val: number
   color: string
   text?: string
+  image_url?: string
 }
 
 interface ForceGraphLink {
@@ -23,6 +26,121 @@ interface ForceGraphLink {
   type: string
 }
 
+// Helper function to create fallback node with colored sphere and initials
+function createFallbackNode(node: ForceGraphNode): THREE.Group {
+  const group = new THREE.Group()
+
+  // Colored sphere
+  const geometry = new THREE.SphereGeometry(15, 32, 32)
+  const material = new THREE.MeshBasicMaterial({ color: node.color })
+  const sphere = new THREE.Mesh(geometry, material)
+  group.add(sphere)
+
+  // Initials overlay
+  const initials = node.name
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
+
+  const sprite = new SpriteText(initials)
+  sprite.color = 'white'
+  sprite.textHeight = 8
+  group.add(sprite)
+
+  return group
+}
+
+// Helper function to create circular image texture from URL
+function createCircularImageTexture(imageUrl: string): Promise<THREE.Texture> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+
+    img.onload = () => {
+      // Create canvas for circular mask
+      const size = 256
+      const canvas = document.createElement('canvas')
+      canvas.width = size
+      canvas.height = size
+      const ctx = canvas.getContext('2d')!
+
+      // Draw circular clip path
+      ctx.beginPath()
+      ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2)
+      ctx.closePath()
+      ctx.clip()
+
+      // Draw image centered and scaled
+      const aspectRatio = img.width / img.height
+      let drawWidth = size
+      let drawHeight = size
+      let offsetX = 0
+      let offsetY = 0
+
+      if (aspectRatio > 1) {
+        drawWidth = size * aspectRatio
+        offsetX = -(drawWidth - size) / 2
+      } else {
+        drawHeight = size / aspectRatio
+        offsetY = -(drawHeight - size) / 2
+      }
+
+      ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight)
+
+      // Create texture from canvas
+      const texture = new THREE.CanvasTexture(canvas)
+      texture.needsUpdate = true
+      resolve(texture)
+    }
+
+    img.onerror = () => {
+      // Return a blank texture on error
+      const canvas = document.createElement('canvas')
+      canvas.width = 256
+      canvas.height = 256
+      const texture = new THREE.CanvasTexture(canvas)
+      resolve(texture)
+    }
+
+    img.src = imageUrl
+  })
+}
+
+// Helper function to create author node with image
+function createAuthorNode(node: ForceGraphNode): THREE.Object3D {
+  // Check if we have a real image URL (starts with http)
+  if (node.image_url && node.image_url.startsWith('http')) {
+    // Create a group to hold the sprite
+    const group = new THREE.Group()
+
+    // Create sprite with placeholder first
+    const spriteMaterial = new THREE.SpriteMaterial({
+      color: 0xcccccc,
+      sizeAttenuation: true,
+    })
+    const sprite = new THREE.Sprite(spriteMaterial)
+    sprite.scale.set(35, 35, 1)
+    group.add(sprite)
+
+    // Load circular image asynchronously
+    createCircularImageTexture(node.image_url).then((texture) => {
+      spriteMaterial.map = texture
+      spriteMaterial.color.setHex(0xffffff) // Remove gray tint
+      spriteMaterial.needsUpdate = true
+      console.log(`✓ Loaded circular image for ${node.name}`)
+    }).catch(() => {
+      console.warn(`✗ Failed to load image for ${node.name}`)
+    })
+
+    return group
+  }
+
+  // For data URLs (SVG) or no image, use fallback
+  return createFallbackNode(node)
+}
+
 function Home() {
   const navigate = useNavigate()
   const graphRef = useRef<any>()
@@ -30,11 +148,6 @@ function Home() {
   const { data: graphData, isLoading: graphLoading } = useQuery({
     queryKey: ['graph'],
     queryFn: () => graphApi.get().then(res => res.data),
-  })
-
-  const { data: quotes } = useQuery({
-    queryKey: ['quotes'],
-    queryFn: () => quoteApi.list({ limit: 20 }).then(res => res.data),
   })
 
   // Transform graph data for react-force-graph
@@ -59,7 +172,8 @@ function Home() {
         z: zPosition,
         val: isQuote ? 8 : 12,
         color: isQuote ? '#3b82f6' : '#f97316',
-        text: isQuote ? node.data.text : undefined
+        text: isQuote ? node.data.text : undefined,
+        image_url: !isQuote ? node.data.image_url : undefined
       }
     })
 
@@ -88,105 +202,63 @@ function Home() {
   }, [forceGraphData])
 
   return (
-    <div style={{ padding: '2rem' }}>
-      <header style={{ marginBottom: '2rem' }}>
-        <h1>Quote Visualization</h1>
-        <nav style={{ marginTop: '1rem', display: 'flex', gap: '1rem' }}>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <header style={{ padding: '1.5rem 2rem', borderBottom: '1px solid #444' }}>
+        <nav style={{ display: 'flex', gap: '1rem' }}>
           <Link to="/">Home</Link>
           <Link to="/analytics">Analytics</Link>
           <Link to="/search">Search</Link>
         </nav>
       </header>
 
-      <main>
-        <section style={{ marginBottom: '2rem', border: '1px solid #444', borderRadius: '0.5rem' }}>
-          <h2 style={{ padding: '1rem', margin: 0, borderBottom: '1px solid #444' }}>
-            Quote Similarity Graph
-          </h2>
-          {graphLoading ? (
-            <div style={{ padding: '1rem' }}>Loading graph...</div>
-          ) : forceGraphData.nodes.length > 0 ? (
-            <div>
-              <div style={{ padding: '1rem', background: '#1a1a1a' }}>
-                <div style={{ marginBottom: '0.5rem', color: '#4ade80' }}>
-                  ✓ Visualization ready
-                </div>
-                <div style={{ fontSize: '0.9rem', color: '#888', marginBottom: '0.5rem' }}>
-                  {graphData && `${graphData.nodes.length} nodes • ${graphData.edges.length} connections`}
-                </div>
-                <div style={{ fontSize: '0.85rem', color: '#666' }}>
-                  <span style={{ color: '#3b82f6' }}>●</span> Quotes •
-                  <span style={{ color: '#f97316' }}> ●</span> Authors •
-                  Click quote to view details
-                </div>
-              </div>
-              <div style={{ height: '600px', background: '#0a0a0a', borderBottomLeftRadius: '0.5rem', borderBottomRightRadius: '0.5rem' }}>
-                <ForceGraph3D
-                  ref={graphRef}
-                  graphData={forceGraphData}
-                  nodeLabel={(node: any) => {
-                    const n = node as ForceGraphNode
-                    if (n.type === 'quote' && n.text) {
-                      return `${n.text.slice(0, 100)}${n.text.length > 100 ? '...' : ''}`
-                    }
-                    return n.name
-                  }}
-                  nodeColor={(node: any) => (node as ForceGraphNode).color}
-                  nodeVal={(node: any) => (node as ForceGraphNode).val}
-                  linkColor={(link: any) => {
-                    const l = link as ForceGraphLink
-                    return l.type === 'similar_to' ? '#666' : '#333'
-                  }}
-                  linkWidth={(link: any) => {
-                    const l = link as ForceGraphLink
-                    return l.type === 'similar_to' ? l.value * 2 : 1
-                  }}
-                  linkDirectionalParticles={(link: any) => {
-                    const l = link as ForceGraphLink
-                    return l.type === 'similar_to' ? 2 : 0
-                  }}
-                  linkDirectionalParticleWidth={2}
-                  onNodeClick={handleNodeClick}
-                  d3AlphaDecay={0.02}
-                  d3VelocityDecay={0.3}
-                  warmupTicks={100}
-                  cooldownTicks={0}
-                  enableNodeDrag={true}
-                  enableNavigationControls={true}
-                />
-              </div>
-            </div>
-          ) : (
-            <div style={{ padding: '1rem' }}>No graph data available. Run migration first.</div>
-          )}
-        </section>
-
-        <section>
-          <h2>Recent Quotes</h2>
-          <div style={{ display: 'grid', gap: '1rem', marginTop: '1rem' }}>
-            {quotes?.map((quote) => (
-              <Link
-                key={quote.id}
-                to={`/quote/${quote.id}`}
-                style={{
-                  display: 'block',
-                  padding: '1rem',
-                  border: '1px solid #444',
-                  borderRadius: '0.5rem',
-                  textDecoration: 'none',
-                  color: 'inherit',
-                }}
-              >
-                <p style={{ fontStyle: 'italic', marginBottom: '0.5rem' }}>
-                  "{quote.text}"
-                </p>
-                <p style={{ fontSize: '0.9rem', color: '#888' }}>
-                  — {quote.author.name}
-                </p>
-              </Link>
-            ))}
-          </div>
-        </section>
+      <main style={{ flex: 1, overflow: 'hidden', background: '#0a0a0a' }}>
+        {graphLoading ? (
+          <div style={{ padding: '2rem', color: '#888' }}>Loading graph...</div>
+        ) : forceGraphData.nodes.length > 0 ? (
+          <ForceGraph3D
+            ref={graphRef}
+            graphData={forceGraphData}
+            nodeLabel={(node: any) => {
+              const n = node as ForceGraphNode
+              if (n.type === 'quote' && n.text) {
+                return `${n.text.slice(0, 100)}${n.text.length > 100 ? '...' : ''}`
+              }
+              return n.name
+            }}
+            nodeThreeObject={(node: any) => {
+              const n = node as ForceGraphNode
+              if (n.type === 'person') {
+                return createAuthorNode(n)
+              } else {
+                const geometry = new THREE.SphereGeometry(8, 16, 16)
+                const material = new THREE.MeshBasicMaterial({ color: n.color })
+                return new THREE.Mesh(geometry, material)
+              }
+            }}
+            linkColor={(link: any) => {
+              const l = link as ForceGraphLink
+              return l.type === 'similar_to' ? '#666' : '#333'
+            }}
+            linkWidth={(link: any) => {
+              const l = link as ForceGraphLink
+              return l.type === 'similar_to' ? l.value * 2 : 1
+            }}
+            linkDirectionalParticles={(link: any) => {
+              const l = link as ForceGraphLink
+              return l.type === 'similar_to' ? 2 : 0
+            }}
+            linkDirectionalParticleWidth={2}
+            onNodeClick={handleNodeClick}
+            d3AlphaDecay={0.02}
+            d3VelocityDecay={0.3}
+            warmupTicks={100}
+            cooldownTicks={0}
+            enableNodeDrag={true}
+            enableNavigationControls={true}
+          />
+        ) : (
+          <div style={{ padding: '2rem', color: '#888' }}>No graph data available.</div>
+        )}
       </main>
     </div>
   )

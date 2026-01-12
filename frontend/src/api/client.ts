@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -13,7 +13,7 @@ export interface Quote {
   id: string
   text: string
   context?: string
-  source?: string
+  original_text?: string
   umap_x?: number
   umap_y?: number
   created_at: string
@@ -54,10 +54,10 @@ export const quoteApi = {
   get: (id: string) =>
     api.get<Quote & { similar_quotes: Quote[] }>(`/api/quotes/${id}`),
 
-  create: (data: { text: string; author: string; context?: string; source?: string }) =>
+  create: (data: { text: string; author: string; context?: string }) =>
     api.post<Quote>('/api/quotes', data),
 
-  update: (id: string, data: Partial<{ text: string; author: string; context?: string; source?: string }>) =>
+  update: (id: string, data: Partial<{ text: string; author: string; context?: string }>) =>
     api.put<Quote>(`/api/quotes/${id}`, data),
 
   delete: (id: string) =>

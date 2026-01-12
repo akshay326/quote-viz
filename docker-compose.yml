@@ -35,7 +35,7 @@ services:
       MODEL_NAME: ${MODEL_NAME:-text-embedding-3-large}
       PYTHONUNBUFFERED: 1
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
       - ./backend/app:/app/app
       - ./data:/app/data
@@ -48,7 +48,7 @@ services:
     build: ./frontend
     container_name: quote-viz-frontend
     environment:
-      VITE_API_URL: http://localhost:8000
+      VITE_API_URL: http://localhost:8001
     ports:
       - "3000:3000"
     volumes:

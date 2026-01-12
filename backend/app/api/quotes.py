@@ -34,7 +34,7 @@ def create_quote(
         author_name=quote.author,
         embedding=embedding,
         context=quote.context,
-        source=quote.source
+        original_text=quote.text
     )
 
     return created_quote
@@ -93,7 +93,6 @@ def update_quote(
         quote_id=quote_id,
         text=quote_update.text,
         context=quote_update.context,
-        source=quote_update.source,
         author_name=quote_update.author,
         embedding=embedding
     )
