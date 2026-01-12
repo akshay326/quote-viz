@@ -40,6 +40,7 @@ async def ingest_quotes(json_file_path: str = "/app/data/processed/quotes.json")
             text = quote_data.get("quote")
             context = quote_data.get("context")
             original_text = quote_data.get("original_text", text)
+            image_url = quote_data.get("authorImage")
 
             if not author or not text:
                 print(f"⚠ Skipping quote {idx}: missing author or text")
@@ -48,8 +49,12 @@ async def ingest_quotes(json_file_path: str = "/app/data/processed/quotes.json")
 
             person = neo4j_service.get_person_by_name(author)
             if not person:
-                person = neo4j_service.create_person(author)
+                person = neo4j_service.create_person(author, image_url=image_url)
                 print(f"  Created person: {author}")
+            elif image_url and person.get("image_url") != image_url:
+                # Update existing person with image if it's different
+                neo4j_service.update_person_image(author, image_url)
+                print(f"  Updated image for: {author}")
 
             print(f"[{idx}/{len(quotes_data)}] Generating embedding for quote by {author}...")
             embedding = await nlp_service.generate_embedding(text)

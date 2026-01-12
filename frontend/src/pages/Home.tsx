@@ -6,6 +6,21 @@ import ForceGraph3D from 'react-force-graph-3d'
 import * as THREE from 'three'
 import SpriteText from 'three-spritetext'
 
+// Generate consistent color from author name
+function getAuthorColor(authorName: string): string {
+  let hash = 0
+  for (let i = 0; i < authorName.length; i++) {
+    hash = authorName.charCodeAt(i) + ((hash << 5) - hash)
+  }
+
+  // Generate HSL color with good saturation and lightness
+  const hue = Math.abs(hash % 360)
+  const saturation = 65 + (Math.abs(hash) % 20) // 65-85%
+  const lightness = 55 + (Math.abs(hash >> 8) % 15) // 55-70%
+
+  return `hsl(${hue}, ${saturation}%, ${lightness}%)`
+}
+
 interface ForceGraphNode {
   id: string
   name: string
@@ -163,15 +178,18 @@ function Home() {
       const clusterId = node.data.cluster_id
       const zPosition = (clusterId !== null && clusterId !== undefined) ? clusterId * 200 : 0
 
+      // Determine author name for color
+      const authorName = isQuote ? (node.data.author || 'Unknown') : node.label
+
       return {
         id: node.id,
-        name: isQuote ? node.data.author || 'Unknown' : node.label,
+        name: authorName,
         type: node.type,
         x: hasUMAP ? (node.data.umap_x - 0.5) * 1000 : undefined,
         y: hasUMAP ? (node.data.umap_y - 0.5) * 1000 : undefined,
         z: zPosition,
         val: isQuote ? 8 : 12,
-        color: isQuote ? '#3b82f6' : '#f97316',
+        color: getAuthorColor(authorName),
         text: isQuote ? node.data.text : undefined,
         image_url: !isQuote ? node.data.image_url : undefined
       }

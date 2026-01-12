@@ -39,6 +39,12 @@ def init_database():
         )
         print("✓ Created unique constraint on Person.name")
 
+        session.run(
+            "CREATE CONSTRAINT quote_text_unique IF NOT EXISTS "
+            "FOR (q:Quote) REQUIRE q.text IS UNIQUE"
+        )
+        print("✓ Created unique constraint on Quote.text")
+
         print("\nCreating indexes...")
 
         session.run(

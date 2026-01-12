@@ -105,22 +105,27 @@ class Neo4jService:
         umap_x: Optional[float] = None,
         umap_y: Optional[float] = None
     ) -> dict:
-        """Create a quote node and link to person."""
+        """Create or update a quote node and link to person."""
         with self.driver.session() as session:
             result = session.run(
                 """
                 MATCH (p:Person {name: $author_name})
-                CREATE (q:Quote {
-                    id: $id,
-                    text: $text,
-                    context: $context,
-                    original_text: $original_text,
-                    embedding: $embedding,
-                    umap_x: $umap_x,
-                    umap_y: $umap_y,
-                    created_at: datetime()
-                })
-                CREATE (q)-[:ATTRIBUTED_TO]->(p)
+                MERGE (q:Quote {text: $text})
+                ON CREATE SET
+                    q.id = $id,
+                    q.context = $context,
+                    q.original_text = $original_text,
+                    q.embedding = $embedding,
+                    q.umap_x = $umap_x,
+                    q.umap_y = $umap_y,
+                    q.created_at = datetime()
+                ON MATCH SET
+                    q.embedding = $embedding,
+                    q.context = COALESCE($context, q.context),
+                    q.original_text = COALESCE($original_text, q.original_text),
+                    q.umap_x = COALESCE($umap_x, q.umap_x),
+                    q.umap_y = COALESCE($umap_y, q.umap_y)
+                MERGE (q)-[:ATTRIBUTED_TO]->(p)
                 RETURN q, p
                 """,
                 id=str(uuid.uuid4()),
@@ -388,7 +393,8 @@ class Neo4jService:
                         "text": quote["text"],
                         "author": person["name"],
                         "umap_x": quote.get("umap_x"),
-                        "umap_y": quote.get("umap_y")
+                        "umap_y": quote.get("umap_y"),
+                        "cluster_id": quote.get("cluster_id")
                     }
                 })
 
