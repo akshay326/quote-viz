@@ -504,14 +504,14 @@ class Neo4jService:
             result = session.run(
                 """
                 MATCH (q:Quote)-[:ATTRIBUTED_TO]->(p:Person)
-                WHERE toLower(q.text) CONTAINS toLower($query)
-                   OR toLower(p.name) CONTAINS toLower($query)
-                   OR toLower(q.context) CONTAINS toLower($query)
+                WHERE toLower(q.text) CONTAINS toLower($query_text)
+                   OR toLower(p.name) CONTAINS toLower($query_text)
+                   OR toLower(q.context) CONTAINS toLower($query_text)
                 RETURN q, p
                 ORDER BY q.created_at DESC
                 LIMIT $limit
                 """,
-                query=query,
+                query_text=query,
                 limit=limit
             )
             quotes = []
